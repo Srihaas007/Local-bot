@@ -1,0 +1,14 @@
+# Core runtime deps (lightweight)
+click>=8.1
+pydantic>=2.7
+rich>=13.7
+python-dotenv>=1.0
+
+# Testing
+pytest>=8.2
+
+# Optional providers (install manually as needed)
+# llama-cpp-python  # For GGUF models via llama.cpp (CPU/GPU)
+# transformers       # For HF models (requires torch)
+# torch              # Pick the right CUDA build for your GPU
+# bitsandbytes       # Optional 4/8-bit quantization for Transformers
