@@ -2,6 +2,8 @@ from .base import Tool, ToolResult
 from .file_tools import ReadFile, WriteFile, ListFiles
 from .shell_tool import ShellRun
 from .web_fetch import WebFetch
+from .run_python import RunPython
+from .git_ops import GitOps
 
 # Try to import any generated tools installed by the SkillManager.
 try:  # pragma: no cover
@@ -17,4 +19,6 @@ __all__ = [
     "ListFiles",
     "ShellRun",
     "WebFetch",
+    "RunPython",
+    "GitOps",
 ]

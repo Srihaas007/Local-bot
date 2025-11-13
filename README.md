@@ -6,7 +6,7 @@ A small, extensible local agent you can run entirely on your Windows machine. It
   - LlamaCppProvider (GGUF via `llama-cpp-python`) — optional
   - TransformersProvider (Hugging Face) — optional
   - EchoProvider (for tests; no heavy deps)
-- Tools: read/write/list files, run shell (scoped), and a simple memory store (SQLite)
+- Tools: read/write/list files, run shell (scoped), web fetch with allowlist, run Python in a sandbox, git ops, and a simple memory store (SQLite)
 - Agent loop: JSON tool-calling protocol with human approval gates
 - No external services required by default.
 
@@ -95,6 +95,14 @@ Type messages. The agent will respond or request a tool call in JSON. With a rea
 
 Examples of agent tool outputs are printed with diffs and prompts for approval.
 
+### Built-in tools
+
+- read_file / write_file / list_files — workspace path jail enforced
+- web_fetch — HTTP(S) fetch with domain allowlist and size/time/content-type guards (set LOCAL_AGENT_ALLOWED_DOMAINS)
+- run_python — run a short Python snippet in a temporary sandbox directory under `.agent_data/sandboxes` with timeout and a best-effort restricted I/O mode (blocks some modules and prevents file access outside the sandbox)
+- git_ops — lightweight git status/diff/commit limited to a workspace-relative repo path
+- shell_run — disabled by default; enable via env `LOCAL_AGENT_ALLOW_SHELL=1` or CLI flag
+
 ### Skills CLI
 
 Manage skills (self-extended tools) via a separate CLI:
@@ -174,3 +182,14 @@ from src.local_agent.tools.generated.speech_to_text import SpeechToTextTool
 print(SpeechToTextTool().run(audio_path="demo.wav"))
 PY
 ```
+
+## Optional: pre-commit hooks
+
+You can enable formatting and linting pre-commit hooks locally (not enforced in CI yet):
+
+```powershell
+pip install pre-commit
+pre-commit install
+```
+
+This sets up Black, isort, and Flake8 via `.pre-commit-config.yaml`.

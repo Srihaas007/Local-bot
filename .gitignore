@@ -25,6 +25,7 @@ Thumbs.db
 # Models and data
 models/
 .agent_data/
+*.wav
 
 # Build
 build/
