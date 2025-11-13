@@ -12,3 +12,7 @@ pytest>=8.2
 # transformers       # For HF models (requires torch)
 # torch              # Pick the right CUDA build for your GPU
 # bitsandbytes       # Optional 4/8-bit quantization for Transformers
+
+# Optional web UI (FastAPI server and streaming)
+fastapi>=0.110
+uvicorn>=0.29
