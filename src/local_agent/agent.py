@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from .model_providers.base import ModelProvider, Message
-from .tools import Tool, ReadFile, WriteFile, ListFiles, ShellRun
+from .tools import Tool, ReadFile, WriteFile, ListFiles, ShellRun, WebFetch
 from .memory import MemoryStore, MemoryItem
 from .config import FLAGS
 
@@ -16,7 +16,7 @@ SYSTEM_PROMPT = (
 
 def _load_tools() -> List[Tool]:
     # Base tools
-    tools: List[Tool] = [ReadFile(), WriteFile(), ListFiles(), ShellRun()]
+    tools: List[Tool] = [ReadFile(), WriteFile(), ListFiles(), ShellRun(), WebFetch()]
     # Include any generated tools by scanning subclasses
     try:
         # Discover subclasses defined in imported modules

@@ -15,8 +15,10 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 class RuntimeFlags:
     allow_shell: bool = False
     approve_tools: bool = True
+    allowed_domains: tuple[str, ...] = ()
 
 FLAGS = RuntimeFlags(
     allow_shell=os.getenv("LOCAL_AGENT_ALLOW_SHELL", "0") == "1",
     approve_tools=os.getenv("LOCAL_AGENT_APPROVE_TOOLS", "1") == "1",
+    allowed_domains=tuple(filter(None, (os.getenv("LOCAL_AGENT_ALLOWED_DOMAINS", "").split(","))))
 )
