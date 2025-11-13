@@ -14,7 +14,26 @@ SYSTEM_PROMPT = (
     "Otherwise respond with {\"type\":\"reply\", \"content\":<message>}.")
 
 
-tool_instances: List[Tool] = [ReadFile(), WriteFile(), ListFiles(), ShellRun()]
+def _load_tools() -> List[Tool]:
+    # Base tools
+    tools: List[Tool] = [ReadFile(), WriteFile(), ListFiles(), ShellRun()]
+    # Include any generated tools by scanning subclasses
+    try:
+        # Discover subclasses defined in imported modules
+        for cls in Tool.__subclasses__():
+            # Skip base known ones by name
+            if cls in {ReadFile, WriteFile, ListFiles, ShellRun}:
+                continue
+            try:
+                inst = cls()  # type: ignore[call-arg]
+                tools.append(inst)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return tools
+
+tool_instances: List[Tool] = _load_tools()
 TOOL_MAP: Dict[str, Tool] = {t.name: t for t in tool_instances}
 TOOL_SCHEMA = [t.schema() for t in tool_instances]
 

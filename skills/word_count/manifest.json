@@ -1,0 +1,19 @@
+{
+  "name": "word_count",
+  "description": "Count words in text",
+  "permissions": [],
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "outputs": {
+    "type": "string"
+  }
+}

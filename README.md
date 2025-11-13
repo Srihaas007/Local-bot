@@ -106,3 +106,17 @@ Examples of agent tool outputs are printed with diffs and prompts for approval.
 - Add semantic memory (sentence-transformers + SQLite vector table)
 - Add LangGraph workflow (approval gates, retries) if you need more complex flows
 - Add a simple web UI
+
+## Skill factory (self-extend) — MVP
+
+The project includes a minimal skill manager that can install new tools with a manifest, code, and optional tests. Installed tools live under `src/local_agent/tools/generated/` and are auto-loaded by the agent.
+
+Example: install a simple word_count tool (from tests):
+
+1) Look at `tests/test_skill_factory.py` for an example manifest and tool code.
+2) Use the `SkillManager` in a short Python snippet to install it, or copy the example into your own script.
+3) After installation, the tool `word_count` will be available to the agent as a regular tool.
+
+Notes:
+- Tests for a skill can be run selectively; in this MVP they run in the same environment (no per-skill venv yet).
+- Approval gates are supported by your workflow: generate → test → review → install.
