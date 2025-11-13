@@ -1,0 +1,14 @@
+{
+  "name": "text_to_speech",
+  "description": "Convert text to speech and save to an audio file using pyttsx3 (offline)",
+  "permissions": ["filesystem:write"],
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "text": {"type": "string"},
+      "out_path": {"type": "string"}
+    },
+    "required": ["text", "out_path"]
+  },
+  "outputs": {"type": "string"}
+}

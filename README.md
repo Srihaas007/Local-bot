@@ -137,3 +137,40 @@ Example: install a simple word_count tool (from tests):
 Notes:
 - Tests for a skill can be run selectively; in this MVP they run in the same environment (no per-skill venv yet).
 - Approval gates are supported by your workflow: generate → test → review → install.
+
+### Optional speech skills (offline)
+
+Two example skills are included and auto-loaded:
+- speech_to_text (Vosk): transcribes a 16kHz mono WAV to text.
+- text_to_speech (pyttsx3): converts text to speech and saves to a file.
+
+Dependencies (optional):
+
+```powershell
+pip install pyttsx3
+pip install vosk
+# Download a Vosk model (e.g., small English) and set VOSK_MODEL_PATH to its directory
+# https://alphacephei.com/vosk/models
+```
+
+Usage examples:
+
+- TTS to a file:
+
+```powershell
+python - <<'PY'
+from src.local_agent.tools.generated.text_to_speech import TextToSpeechTool
+print(TextToSpeechTool().run(text="Hello from Local-bot", out_path="tts_demo.wav"))
+PY
+```
+
+- STT from a WAV:
+
+```powershell
+python - <<'PY'
+import os
+os.environ['VOSK_MODEL_PATH'] = r'.\\models\\vosk-model-small-en-us-0.15'  # adjust path
+from src.local_agent.tools.generated.speech_to_text import SpeechToTextTool
+print(SpeechToTextTool().run(audio_path="demo.wav"))
+PY
+```

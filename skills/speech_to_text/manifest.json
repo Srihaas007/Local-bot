@@ -1,0 +1,14 @@
+{
+  "name": "speech_to_text",
+  "description": "Transcribe a WAV audio file to text using Vosk (offline)",
+  "permissions": ["filesystem:read"],
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "audio_path": {"type": "string"},
+      "model_path": {"type": "string"}
+    },
+    "required": ["audio_path"]
+  },
+  "outputs": {"type": "string"}
+}
