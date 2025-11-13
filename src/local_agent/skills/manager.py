@@ -5,7 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
-from ..config import ROOT
+from ..config import ROOT, FLAGS
 from ..tools.base import Tool
 from .schema import SkillManifest
 
@@ -69,11 +69,40 @@ class SkillManager:
         return tool_path
 
     def _run_pytest_subset(self, path: str) -> None:
-        # Run pytest on a subset; raise if fails
-        cmd = ["python", "-m", "pytest", "-q", path]
+        # Run pytest on a subset; optionally in a per-skill venv
+        if FLAGS.skill_venv:
+            # Infer skill name from test file path: tests/skills/test_<name>.py
+            try:
+                skill_name = Path(path).stem.replace("test_", "", 1)
+            except Exception:
+                skill_name = "skill"
+            py = self._ensure_skill_venv(skill_name)
+            cmd = [str(py), "-m", "pytest", "-q", path]
+        else:
+            cmd = ["python", "-m", "pytest", "-q", path]
         proc = subprocess.run(cmd, cwd=self.root, capture_output=True, text=True)
         if proc.returncode != 0:
             raise RuntimeError(f"Skill tests failed:\n{proc.stdout}\n{proc.stderr}")
+
+    def _ensure_skill_venv(self, name: str) -> Path:
+        """Create or reuse a virtualenv for a given skill; returns python executable path."""
+        vroot = self.root / ".agent_data" / "skills" / name
+        venv_dir = vroot / "venv"
+        venv_dir.mkdir(parents=True, exist_ok=True)
+        # Create venv if not initialized (pyvenv.cfg absent)
+        if not (venv_dir / "pyvenv.cfg").exists():
+            c = subprocess.run(["python", "-m", "venv", str(venv_dir)], cwd=self.root, capture_output=True, text=True)
+            if c.returncode != 0:
+                raise RuntimeError(f"Failed to create venv for skill '{name}':\n{c.stdout}\n{c.stderr}")
+        # Resolve python path
+        win_py = venv_dir / "Scripts" / "python.exe"
+        nix_py = venv_dir / "bin" / "python"
+        if win_py.exists():
+            return win_py
+        if nix_py.exists():
+            return nix_py
+        # Fallback
+        return nix_py
 
     @staticmethod
     def _tool_class_name(name: str) -> str:

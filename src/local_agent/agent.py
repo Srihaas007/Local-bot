@@ -22,7 +22,7 @@ def _load_tools() -> List[Tool]:
         # Discover subclasses defined in imported modules
         for cls in Tool.__subclasses__():
             # Skip base known ones by name
-            if cls in {ReadFile, WriteFile, ListFiles, ShellRun}:
+            if cls in {ReadFile, WriteFile, ListFiles, ShellRun, WebFetch}:
                 continue
             try:
                 inst = cls()  # type: ignore[call-arg]

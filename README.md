@@ -193,3 +193,27 @@ pre-commit install
 ```
 
 This sets up Black, isort, and Flake8 via `.pre-commit-config.yaml`.
+
+## Per-skill sandbox (optional venv)
+
+You can run each skill's tests in an isolated virtual environment. This is off by default to keep CI fast. Enable it via an environment variable and bootstrap the venv once:
+
+```powershell
+$env:LOCAL_AGENT_SKILL_VENV = "1"
+# Optional bootstrap inside the skill venv (example for a skill named 'word_count')
+python - <<'PY'
+from src.local_agent.skills.manager import SkillManager
+m = SkillManager()
+py = m._ensure_skill_venv('word_count')
+import subprocess
+subprocess.run([str(py), '-m', 'pip', 'install', '--upgrade', 'pip'], check=False)
+subprocess.run([str(py), '-m', 'pip', 'install', 'pytest'], check=False)
+PY
+```
+
+After that, installing a skill with tests and approval will execute those tests in the skill's venv.
+
+Notes:
+- The venv is created under `.agent_data/skills/<name>/venv`.
+- If pytest is not installed in that venv, test execution will fail with an error. Bootstrap as shown above.
+- For strict isolation, you may also install only the minimal dependencies the skill needs into that venv.
