@@ -73,6 +73,18 @@ pip install transformers bitsandbytes
 
 Note: Large ML installs can take time; the agent still works with EchoProvider meanwhile.
 
+## Optional: Semantic memory (embeddings)
+
+Semantic memory is optional and off by default. To enable it:
+
+1) Install sentence-transformers (will pull PyTorch CPU by default):
+
+```powershell
+pip install sentence-transformers
+```
+
+2) The agent will automatically compute embeddings for new memories and use semantic search. If not installed, it will fall back to keyword search.
+
 ## Usage
 
 ```powershell

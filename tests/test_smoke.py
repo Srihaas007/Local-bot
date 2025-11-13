@@ -1,6 +1,6 @@
 from __future__ import annotations
 from src.local_agent.agent import Agent
-from src.local_agent.memory import MemoryStore
+from src.local_agent.memory import MemoryStore, MemoryItem
 from src.local_agent.model_providers.base import ModelProvider, ModelResponse, Message
 
 
@@ -28,3 +28,17 @@ def test_agent_tool_flow(tmp_path):
     assert r2.output.startswith("OK:") or r2.output.startswith("ERR:")
     r3 = agent.step("Thanks")
     assert "reply" in r3.output.lower() or r3.output.startswith("{") or len(r3.output) > 0
+
+
+def test_memory_keyword_search(tmp_path):
+    ms = MemoryStore()
+    # Add some notes
+    ms.add([MemoryItem(kind="note", text="Buy milk and eggs"), MemoryItem(kind="note", text="Project meeting at 3 PM"), MemoryItem(kind="note", text="Learn about vector search")])
+    hits = ms.search_keyword("meeting", limit=2)
+    assert any("meeting" in t.lower() for (_id, _k, t) in hits)
+
+def test_memory_search_fallback(tmp_path):
+    ms = MemoryStore()
+    ms.add([MemoryItem(kind="note", text="Alice birthday is on Friday"), MemoryItem(kind="note", text="Remember to call Bob")])
+    hits = ms.search("birthday", limit=1)
+    assert len(hits) >= 1

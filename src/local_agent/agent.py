@@ -55,7 +55,11 @@ class Agent:
                 self.memory.add([MemoryItem(kind="file_write", text=str(args))])
             return AgentResult(output=("OK: " if result.ok else "ERR: ") + result.content, used_tool=name)
 
-        # Normal turn: ask the model what to do
+        # Normal turn: retrieve relevant memory, then ask the model what to do
+        mem_hits = self.memory.search(user_text, limit=3)
+        if mem_hits:
+            mem_text = "\n".join(f"- [{k}] {t}" for (_id, k, t) in mem_hits)
+            self._append("system", f"Relevant memory:\n{mem_text}")
         self._append("user", user_text)
         resp = self.provider.chat(self.history, tools_schema=TOOL_SCHEMA, temperature=0.2)
         self._append("assistant", resp.text)
