@@ -5,6 +5,7 @@ import click
 from rich.console import Console
 from .skills.manager import SkillManager, SKILLS_DIR, GENERATED_TOOLS_DIR
 from .skills.schema import SkillManifest
+from .skills.generator import generate_skill
 
 console = Console()
 
@@ -70,6 +71,45 @@ def install_skill(manifest_path: str, code_path: str, tests_path: str | None, au
         console.print(f"[green]Installed skill '{manifest.name}'.[/green]")
     except Exception as e:
         console.print(f"[red]Installation failed:[/red] {e}")
+        raise SystemExit(1)
+
+@main.command("propose")
+@click.option("--name", "name_", type=str, required=True, help="Skill name (python identifier)")
+@click.option("--description", type=str, required=True, help="Skill description")
+@click.option("--inputs", "inputs_json", type=str, default='{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}', help="JSON schema for inputs")
+@click.option("--outputs", "outputs_json", type=str, default='{"type":"string"}', help="JSON schema for outputs")
+@click.option("--pattern", type=click.Choice(["echo"]), default="echo", help="Generator pattern")
+@click.option("--auto-approve", is_flag=True, default=False, help="Install without interactive approval")
+@click.option("--run-tests", is_flag=True, default=True, help="Run generated tests after install")
+def propose_skill(name_: str, description: str, inputs_json: str, outputs_json: str, pattern: str, auto_approve: bool, run_tests: bool) -> None:
+    """Propose and install a new skill by generating code and tests from minimal inputs."""
+    try:
+        inputs = json.loads(inputs_json)
+        outputs = json.loads(outputs_json)
+    except Exception as e:
+        console.print(f"[red]Invalid JSON provided for inputs/outputs:[/red] {e}")
+        raise SystemExit(2)
+
+    manifest = SkillManifest(name=name_, description=description, inputs=inputs, outputs=outputs, permissions=[])
+    tool_code, test_code = generate_skill(manifest, pattern=pattern)
+
+    console.print("[bold]Proposed skill[/bold]")
+    console.print({
+        "manifest": manifest.to_dict(),
+        "code_preview": tool_code.splitlines()[:15],
+        "test_preview": (test_code.splitlines()[:10] if test_code else []),
+    })
+    if not auto_approve:
+        if not click.confirm("Install this generated skill?", default=False):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return
+
+    mgr = SkillManager()
+    try:
+        mgr.install_skill(manifest, tool_code, test_code, approve=run_tests)
+        console.print(f"[green]Installed generated skill '{manifest.name}'.[/green]")
+    except Exception as e:
+        console.print(f"[red]Generation/install failed:[/red] {e}")
         raise SystemExit(1)
 
 @main.command("run-tests")

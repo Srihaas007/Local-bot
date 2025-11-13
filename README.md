@@ -107,6 +107,9 @@ python -m src.local_agent.skills_cli install --manifest skills\word_count\manife
 
 # Run only skills tests
 python -m src.local_agent.skills_cli run-tests --path tests\skills
+
+# Propose a new skill (echo)
+python -m src.local_agent.skills_cli propose --name echo_text --description "Echo the input" --auto-approve
 ```
 
 ## Safety & sandboxing

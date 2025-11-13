@@ -1,0 +1,19 @@
+{
+  "name": "echo_text",
+  "description": "Echo the input text",
+  "permissions": [],
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "outputs": {
+    "type": "string"
+  }
+}
