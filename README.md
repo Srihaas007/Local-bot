@@ -95,6 +95,20 @@ Type messages. The agent will respond or request a tool call in JSON. With a rea
 
 Examples of agent tool outputs are printed with diffs and prompts for approval.
 
+### Skills CLI
+
+Manage skills (self-extended tools) via a separate CLI:
+
+```powershell
+python -m src.local_agent.skills_cli list
+
+# Install from files (requires a manifest.json and a tool .py; tests optional)
+python -m src.local_agent.skills_cli install --manifest skills\word_count\manifest.json --code src\local_agent\tools\generated\word_count.py --auto-approve
+
+# Run only skills tests
+python -m src.local_agent.skills_cli run-tests --path tests\skills
+```
+
 ## Safety & sandboxing
 
 - Path jail: tools are restricted to the workspace folder by default.
