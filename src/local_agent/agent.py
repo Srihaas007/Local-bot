@@ -105,6 +105,69 @@ class Agent:
                 self.memory.add([MemoryItem(kind="note", text=user_text)])
             return AgentResult(output=resp.text)
 
+    def step_stream(self, user_text: str, temperature: float = 0.2, max_tokens: int = 512):
+        """Stream tokens to the caller while accumulating the full response, then finalize like step().
+        Yields chunks of text when appropriate (i.e., non-JSON tool call). Returns an AgentResult at the end.
+        """
+        # Prepare memory context
+        mem_hits = self.memory.search(user_text, limit=3)
+        if mem_hits:
+            mem_text = "\n".join(f"- [{k}] {t}" for (_id, k, t) in mem_hits)
+            self._append("system", f"Relevant memory:\n{mem_text}")
+        self._append("user", user_text)
+
+        # Stream from provider
+        chunks: List[str] = []
+        saw_non_ws = False
+        json_mode = False
+        for part in self.provider.stream_chat(self.history, tools_schema=TOOL_SCHEMA, temperature=temperature, max_tokens=max_tokens):
+            if not part:
+                continue
+            if not saw_non_ws:
+                # Determine if this looks like JSON; if so, don't stream live
+                for ch in part:
+                    if not ch.isspace():
+                        saw_non_ws = True
+                        if ch == '{':
+                            json_mode = True
+                        break
+            chunks.append(part)
+            if not json_mode:
+                # Yield live chunks to caller
+                yield part
+
+        full_text = "".join(chunks).strip()
+        self._append("assistant", full_text)
+
+        # Finalize similar to step()
+        action = self._parse_action(full_text)
+        if action and action.get("type") == "tool":
+            name = action.get("name", "")
+            args = action.get("args", {})
+            tool = TOOL_MAP.get(name)
+            if not tool:
+                yield "\n"
+                yield f"Unknown tool: {name}"
+                return AgentResult(output=f"Unknown tool: {name}")
+            if FLAGS.approve_tools:
+                # Store pending and signal approval prompt (do not stream tool JSON)
+                self._pending_action = action
+                yield "\n"
+                yield f"Tool requested: {name} {args}. Approve? (y/n)"
+                return AgentResult(output=f"Tool requested: {name} {args}. Approve? (y/n)", used_tool=name)
+            # Execute immediately if no approval required
+            result = tool.run(**args)
+            self._append("tool", f"{name}: {result.content}")
+            if result.ok and name == "write_file":
+                self.memory.add([MemoryItem(kind="file_write", text=str(args))])
+            yield "\n"
+            yield ("OK: " if result.ok else "ERR: ") + result.content
+            return AgentResult(output=("OK: " if result.ok else "ERR: ") + result.content, used_tool=name)
+        else:
+            if len(user_text) < 400:
+                self.memory.add([MemoryItem(kind="note", text=user_text)])
+            return AgentResult(output=full_text)
+
     @staticmethod
     def _parse_action(text: str) -> Optional[Dict[str, Any]]:
         # Try to find a JSON object in the response

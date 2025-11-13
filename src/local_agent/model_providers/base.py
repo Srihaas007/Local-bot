@@ -25,3 +25,10 @@ class ModelProvider:
         Providers should implement this.
         """
         raise NotImplementedError
+
+    def stream_chat(self, messages: List[Message], tools_schema: Optional[List[Dict[str, Any]]] = None, **gen_kwargs: Any):
+        """Yield assistant text chunks progressively.
+        Default implementation yields a single chunk equal to chat().text.
+        """
+        resp = self.chat(messages, tools_schema=tools_schema, **gen_kwargs)
+        yield resp.text

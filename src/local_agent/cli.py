@@ -14,7 +14,8 @@ console = Console()
 @click.option("--model-name", type=str, default=None, help="HF model name or path (for transformers)")
 @click.option("--allow-shell", is_flag=True, default=False, help="Allow shell tool")
 @click.option("--no-approve", is_flag=True, default=False, help="Do not ask approval before tool run")
-def main(provider: str, model_path: str | None, model_name: str | None, allow_shell: bool, no_approve: bool) -> None:
+@click.option("--no-stream", is_flag=True, default=False, help="Disable token streaming in CLI")
+def main(provider: str, model_path: str | None, model_name: str | None, allow_shell: bool, no_approve: bool, no_stream: bool) -> None:
     # Late import to avoid optional deps at CLI import time
     from .config import FLAGS
 
@@ -58,12 +59,27 @@ def main(provider: str, model_path: str | None, model_name: str | None, allow_sh
         user = console.input("You > ")
         if user.strip().lower() in {"exit", "quit"}:
             break
-        result = agent.step(user)
-        if result.used_tool and result.output.startswith("Tool requested:"):
-            console.print(result.output)
-            pending_tool = result.used_tool
+        if no_stream:
+            result = agent.step(user)
+            if result.used_tool and result.output.startswith("Tool requested:"):
+                console.print(result.output)
+                pending_tool = result.used_tool
+            else:
+                console.print(result.output)
         else:
-            console.print(result.output)
+            # Stream tokens when possible. Agent.step_stream yields chunks and returns an AgentResult at the end.
+            last_result = None
+            for chunk in agent.step_stream(user):
+                # step_stream yields strings; the last return is handled via the generator's StopIteration value, but we also yield messages for prompts
+                console.print(chunk, end="")
+            # After streaming, we re-run a minimal parse by calling step with approve=None? No: step_stream already appended history.
+            # To reflect any trailing messages (like tool approvals), we call step_stream again isn't needed; Instead, the last yielded lines include prompts.
+            # For simplicity, read the last history message to decide if a tool was requested.
+            # We fallback to asking approval on next loop if we detect the standard text.
+            # Detect pending action set by step_stream
+            if getattr(agent, "_pending_action", None) is not None:
+                pending_tool = agent._pending_action.get("name")  # type: ignore
+            console.print("")
 
 
 if __name__ == "__main__":

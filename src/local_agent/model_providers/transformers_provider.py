@@ -58,3 +58,31 @@ class TransformersProvider(ModelProvider):
         # Return only the assistant continuation after the prompt
         completion = text[len(prompt):].strip()
         return ModelResponse(text=completion)
+
+    def stream_chat(self, messages: List[Message], tools_schema: Optional[List[Dict[str, Any]]] = None, **gen_kwargs: Any):
+        # Stream using Transformers TextIteratorStreamer
+        prompt = "".join(f"[{m.role.upper()}]\n{m.content}\n" for m in messages) + "[ASSISTANT]\n"
+        import torch  # type: ignore
+        from transformers import TextIteratorStreamer  # type: ignore
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        streamer = TextIteratorStreamer(self.tokenizer, skip_special_tokens=True, skip_prompt=True)
+        import threading
+
+        def _worker():
+            with torch.no_grad():
+                self.model.generate(
+                    **inputs,
+                    max_new_tokens=gen_kwargs.get("max_tokens", 512),
+                    do_sample=True,
+                    temperature=gen_kwargs.get("temperature", 0.2),
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    streamer=streamer,
+                )
+
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        try:
+            for token in streamer:
+                yield token
+        except Exception:
+            pass

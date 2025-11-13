@@ -40,3 +40,16 @@ class LlamaCppProvider(ModelProvider):
         out = self._llm(prompt=prompt, max_tokens=gen_kwargs.get("max_tokens", 512), temperature=gen_kwargs.get("temperature", 0.2))
         text = out["choices"][0]["text"].strip()
         return ModelResponse(text=text)
+
+    def stream_chat(self, messages: List[Message], tools_schema: Optional[List[Dict[str, Any]]] = None, **gen_kwargs: Any):
+        prompt = "".join(
+            f"<|{m.role}|>\n{m.content}\n" for m in messages
+        ) + "<|assistant|>\n"
+        try:
+            for part in self._llm(prompt=prompt, max_tokens=gen_kwargs.get("max_tokens", 512), temperature=gen_kwargs.get("temperature", 0.2), stream=True):
+                # part is a dict with incremental token in choices[0]["text"]
+                yield part.get("choices", [{}])[0].get("text", "")
+        except Exception:
+            # Fallback to non-streaming if anything goes wrong
+            resp = self.chat(messages, tools_schema=tools_schema, **gen_kwargs)
+            yield resp.text
