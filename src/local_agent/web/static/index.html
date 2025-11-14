@@ -41,6 +41,15 @@
         <button id="ttsBtn">Play TTS</button>
         <audio id="ttsAudio" controls style="display:none;"></audio>
       </div>
+        <div style="margin-top:18px;">
+          <h4>Mic (live)</h4>
+          <div>
+            <button id="micStartBtn">Start Mic</button>
+            <button id="micStopBtn" disabled>Stop & Transcribe</button>
+          </div>
+          <small id="micStatus" style="display:block; margin-top:6px; color:#bbb;">Idle</small>
+          <audio id="micPlayback" controls style="display:none; margin-top:6px;"></audio>
+        </div>
     </div>
   </div>
   <div id="main">
@@ -180,6 +189,108 @@
       audio.style.display='block';
       audio.src = url;
       audio.play();
+    });
+
+    // ===== Microphone capture (WAV builder) =====
+    const micStartBtn = document.getElementById('micStartBtn');
+    const micStopBtn  = document.getElementById('micStopBtn');
+    const micStatus   = document.getElementById('micStatus');
+    const micPlayback = document.getElementById('micPlayback');
+    let audioCtx; let micStream; let sourceNode; let processorNode; let buffers = []; let recording = false;
+
+    function mergeBuffers(bufferArrays, totalLength) {
+      const result = new Float32Array(totalLength);
+      let offset = 0;
+      for (const arr of bufferArrays) { result.set(arr, offset); offset += arr.length; }
+      return result;
+    }
+    function floatTo16BitPCM(floatBuf) {
+      const out = new DataView(new ArrayBuffer(floatBuf.length * 2));
+      let offset = 0;
+      for (let i=0;i<floatBuf.length;i++) {
+        let s = Math.max(-1, Math.min(1, floatBuf[i]));
+        s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        out.setInt16(offset, s, true); offset += 2;
+      }
+      return out.buffer;
+    }
+    function encodeWAV(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      const writeString = (offset, str) => { for (let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); };
+      // RIFF header
+      writeString(0,'RIFF');
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeString(8,'WAVE');
+      writeString(12,'fmt ');
+      view.setUint32(16,16,true); // Subchunk1Size
+      view.setUint16(20,1,true);  // PCM
+      view.setUint16(22,1,true);  // mono
+      view.setUint32(24,sampleRate,true);
+      view.setUint32(28,sampleRate*2,true); // byte rate (sampleRate * numChannels * bytesPerSample)
+      view.setUint16(32,2,true); // block align
+      view.setUint16(34,16,true); // bits per sample
+      writeString(36,'data');
+      view.setUint32(40, samples.length * 2, true);
+      // PCM samples
+      const pcm = new DataView(buffer, 44);
+      const floatBuf = samples;
+      let idx = 0;
+      for (let i=0;i<floatBuf.length;i++) {
+        let s = Math.max(-1, Math.min(1, floatBuf[i]));
+        s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        pcm.setInt16(idx, s, true);
+        idx += 2;
+      }
+      return new Blob([buffer], {type:'audio/wav'});
+    }
+
+    micStartBtn.addEventListener('click', async () => {
+      if (recording) return;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        sourceNode = audioCtx.createMediaStreamSource(micStream);
+        processorNode = audioCtx.createScriptProcessor(4096,1,1);
+        buffers = []; recording = true;
+        processorNode.onaudioprocess = (e) => {
+          if (!recording) return;
+          const channelData = e.inputBuffer.getChannelData(0);
+          buffers.push(new Float32Array(channelData));
+        };
+        sourceNode.connect(processorNode);
+        processorNode.connect(audioCtx.destination);
+        micStatus.textContent = 'Recording...';
+        micStartBtn.disabled = true;
+        micStopBtn.disabled = false;
+      } catch (err) {
+        micStatus.textContent = 'Mic error: ' + err;
+      }
+    });
+
+    micStopBtn.addEventListener('click', async () => {
+      if (!recording) return;
+      recording = false;
+      micStartBtn.disabled = false;
+      micStopBtn.disabled = true;
+      micStatus.textContent = 'Processing...';
+      try {
+        processorNode && processorNode.disconnect();
+        sourceNode && sourceNode.disconnect();
+        micStream && micStream.getTracks().forEach(t => t.stop());
+      } catch {}
+      const length = buffers.reduce((a,b)=>a+b.length,0);
+      const merged = mergeBuffers(buffers, length);
+      const wavBlob = encodeWAV(merged, audioCtx.sampleRate);
+      micPlayback.style.display='block';
+      micPlayback.src = URL.createObjectURL(wavBlob);
+      // Upload for STT
+      const fd = new FormData();
+      fd.append('file', wavBlob, 'live.wav');
+      const resp = await fetch('/stt', {method:'POST', body: fd});
+      const data = await resp.json();
+      addMessage('[Live STT] ' + (data.content || data.error), 'assistant');
+      micStatus.textContent = 'Idle';
     });
   </script>
 </body>

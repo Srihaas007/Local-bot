@@ -85,12 +85,16 @@ def tts(text: str = Query("")):
         return PlainTextResponse("text query param required", status_code=400)
     try:
         t = TextToSpeechTool()
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td) / "out.wav"
-            r = t.run(text=text, out_path=str(out))
-            if not r.ok:
-                return PlainTextResponse(r.content, status_code=500)
-            return FileResponse(str(out), media_type="audio/wav", filename="tts.wav")
+        # Use a stable output path inside .agent_data to avoid race with temp cleanup
+        out_dir = Path(".agent_data") / "tts"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / "last_tts.wav"
+        r = t.run(text=text, out_path=str(out))
+        if not r.ok:
+            return PlainTextResponse(r.content, status_code=500)
+        if not out.exists() or out.stat().st_size == 0:
+            return PlainTextResponse("TTS completed but output file not found or empty", status_code=500)
+        return FileResponse(str(out), media_type="audio/wav", filename="tts.wav")
     except Exception as e:
         return PlainTextResponse(f"TTS error: {e}", status_code=500)
 
