@@ -1,0 +1,74 @@
+/* Frontier 1899 theme: rustic western aesthetic without proprietary assets */
+:root {
+  --bg-dusk: #1b0f0a;
+  --bg-panel: #2a160f;
+  --bg-parchment: #f2e1c9;
+  --ink: #2c1b13;
+  --accent: #b33021; /* deep red */
+  --accent-dark: #7d1f15;
+  --accent-gold: #c9a552;
+  --border: #5e3b28;
+  --shadow: rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin:0; padding:0; display:flex; height:100vh; font-family:'Roboto Slab', Georgia, serif;
+  background: radial-gradient(circle at 30% 30%, #3a1f13, #180d08 70%) fixed;
+  color: var(--bg-parchment);
+  overflow:hidden;
+}
+
+body.screen-shake { animation: shake 0.4s linear; }
+@keyframes shake { 0%,100% { transform:translate(0); } 25% { transform:translate(2px, -2px); } 50% { transform:translate(-2px,2px); } 75% { transform:translate(3px,0); }}
+
+#sidebar { width:300px; background:linear-gradient(#2e180f,#1d100b); border-right:4px solid var(--accent-dark); padding:18px 16px; overflow-y:auto; box-shadow:inset 0 0 12px #000; }
+#sidebar h3, #sidebar h4 { font-family:'Cinzel', serif; margin:14px 0 6px; letter-spacing:1px; color:var(--accent-gold); }
+.brand h1 { font-family:'Cinzel', serif; letter-spacing:3px; margin:0; font-size:1.6rem; color:var(--accent-gold); text-shadow:0 0 6px rgba(0,0,0,0.6); }
+.brand .tag { font-size:0.65rem; letter-spacing:2px; opacity:0.7; margin-top:2px; }
+.footer-note { margin-top:24px; font-size:0.6rem; opacity:0.55; line-height:1.2; }
+
+#main { flex:1; display:flex; flex-direction:column; backdrop-filter:blur(2px); }
+#messages { flex:1; padding:22px 26px; overflow-y:auto; background: repeating-linear-gradient(45deg,#220f08,#220f08 40px,#25120a 40px,#25120a 80px); position:relative; }
+
+.msg { position:relative; margin:0 0 14px; padding:12px 14px 10px; border:2px solid var(--border); border-radius:8px; max-width:72%; line-height:1.4; background:var(--bg-parchment); color:var(--ink); font-size:0.95rem; box-shadow:2px 2px 0 var(--accent-dark), 0 0 0 1px #000; }
+.msg.user { margin-left:auto; background:linear-gradient(#fce9d1,#f4d7ad); border-color:var(--accent-gold); box-shadow:2px 2px 0 var(--accent-gold), 0 0 0 1px #000; }
+.msg.assistant { background:linear-gradient(#e8d7bc,#e2caa6); }
+.msg[data-streaming="true"] { outline:3px dashed var(--accent); }
+
+.hit { background:#3b2115; padding:6px 8px; border-radius:5px; margin-bottom:6px; font-size:0.75rem; border:1px solid var(--border); }
+
+#inputBar { display:flex; gap:10px; padding:14px; border-top:3px solid var(--accent-dark); background:#24130d; box-shadow:0 -3px 6px rgba(0,0,0,0.5); }
+#inputBar input[type=text] { flex:1; padding:10px 12px; font-size:0.95rem; border:2px solid var(--border); background:#372115; color:var(--bg-parchment); border-radius:6px; }
+#inputBar input[type=text]::placeholder { color:#c0a98c; }
+
+button { font-family:'Cinzel', serif; font-size:0.75rem; letter-spacing:1px; padding:8px 14px; background:var(--accent); color:#fdf6ee; border:2px solid var(--accent-dark); border-radius:6px; cursor:pointer; text-transform:uppercase; transition:background .15s, transform .15s; }
+button:hover { background:var(--accent-dark); }
+button:active { transform:translateY(2px); }
+#streamToggle { background:#46301f; border-color:#2d1d13; }
+#streamToggle:hover { background:#5b3b26; }
+#bangBtn { background:linear-gradient(#b33021,#821c12); box-shadow:0 0 10px rgba(255,80,60,0.4); }
+#bangBtn:hover { background:linear-gradient(#cc3c2c,#8f2317); }
+
+#muzzle-container { position:relative; }
+.muzzle-flash { position:fixed; top:50%; left:50%; width:160px; height:160px; margin:-80px; border-radius:50%; background:radial-gradient(circle,#ffe8a6 0%, #ffb347 40%, rgba(255,122,0,0.0) 70%); pointer-events:none; animation:flash .3s ease-out; mix-blend-mode:screen; }
+@keyframes flash { 0% { opacity:0; transform:scale(.5);} 10% { opacity:.95; transform:scale(1);} 100% { opacity:0; transform:scale(1.3);} }
+
+#streamIndicator { font-size:0.65rem; padding:4px 10px; color:#d6c4b1; background:#2a160f; border-top:1px solid #3e2417; }
+
+#searchBox { margin:12px 0 8px; }
+#searchBox input { width:100%; padding:8px 10px; margin-bottom:6px; background:#372115; border:2px solid var(--border); border-radius:6px; color:var(--bg-parchment); }
+#searchBox input::placeholder { color:#c0a98c; }
+#searchBtn { width:100%; margin-bottom:8px; }
+
+#voiceControls label { font-size:0.7rem; letter-spacing:1px; }
+#voiceControls input[type=file] { width:100%; margin-top:4px; margin-bottom:6px; }
+#voiceControls small { color:#bba089; }
+#voiceControls audio { width:100%; }
+
+::-webkit-scrollbar { width:10px; }
+::-webkit-scrollbar-track { background:#1e120c; }
+::-webkit-scrollbar-thumb { background:#5e3b28; border-radius:6px; }
+::-webkit-scrollbar-thumb:hover { background:#7d4d36; }
+
+@media (max-width:880px) { body { flex-direction:column; } #sidebar { width:100%; display:flex; flex-wrap:wrap; } #main { height:60vh; } }

@@ -2,28 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Local Agent UI</title>
-  <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; }
-    #sidebar { width: 280px; background:#1e1e1e; color:#eee; padding:16px; box-sizing:border-box; overflow-y:auto; }
-    #main { flex:1; display:flex; flex-direction:column; }
-    #messages { flex:1; padding:16px; overflow-y:auto; background:#fafafa; }
-    .msg { margin:0 0 12px; padding:8px 12px; border-radius:8px; max-width:70%; line-height:1.4; }
-    .user { background:#d0ebff; align-self:flex-end; }
-    .assistant { background:#e2e2e2; }
-    #inputBar { display:flex; gap:8px; padding:12px; border-top:1px solid #ccc; background:#fff; }
-    #inputBar input[type=text] { flex:1; padding:8px; font-size:1rem; }
-    button { cursor:pointer; }
-    #searchBox { margin-top:12px; }
-    #memoryHits { font-size:0.85rem; margin-top:8px; }
-    #streamIndicator { font-size:0.75rem; color:#555; }
-    #voiceControls { margin-top:24px; }
-    .hit { background:#333; padding:6px 8px; border-radius:6px; margin-bottom:6px; }
-  </style>
+  <title>Local Agent • Frontier 1899</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Western-esque font combo (open source) -->
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Roboto+Slab:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <div id="sidebar">
-    <h2>Local Agent</h2>
+    <div class="brand">
+      <h1>LOCAL AGENT</h1>
+      <div class="tag">FRONTIER OPS · 1899</div>
+    </div>
     <div id="searchBox">
       <input type="text" id="searchInput" placeholder="Search memory..." />
       <button id="searchBtn">Search</button>
@@ -50,6 +41,7 @@
           <small id="micStatus" style="display:block; margin-top:6px; color:#bbb;">Idle</small>
           <audio id="micPlayback" controls style="display:none; margin-top:6px;"></audio>
         </div>
+      <div class="footer-note">No proprietary assets used. Rustic theme inspired by the late 19th century.</div>
     </div>
   </div>
   <div id="main">
@@ -58,6 +50,7 @@
       <input type="text" id="chatInput" placeholder="Type a message..." />
       <button id="sendBtn">Send</button>
       <button id="streamToggle">Streaming: ON</button>
+      <button id="bangBtn" title="Bang Bang!">Bang!</button>
     </div>
     <div id="streamIndicator"></div>
   </div>
@@ -148,6 +141,18 @@
       streamToggle.textContent = 'Streaming: ' + (streamingEnabled ? 'ON' : 'OFF');
     });
 
+    // Bang button visual effect (muzzle flash + shake)
+    const bangBtn = document.getElementById('bangBtn');
+    bangBtn.addEventListener('click', () => {
+      const flash = document.createElement('div');
+      flash.className = 'muzzle-flash';
+      document.body.appendChild(flash);
+      setTimeout(()=> flash.remove(), 300);
+      document.body.classList.add('screen-shake');
+      setTimeout(()=> document.body.classList.remove('screen-shake'), 400);
+      addMessage('*Bang!*', 'assistant');
+    });
+
     // Memory search
     document.getElementById('searchBtn').addEventListener('click', async () => {
       const q = document.getElementById('searchInput').value.trim();
@@ -191,7 +196,7 @@
       audio.play();
     });
 
-    // ===== Microphone capture (WAV builder) =====
+  // ===== Microphone capture (WAV builder) =====
     const micStartBtn = document.getElementById('micStartBtn');
     const micStopBtn  = document.getElementById('micStopBtn');
     const micStatus   = document.getElementById('micStatus');
