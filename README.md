@@ -183,6 +183,114 @@ print(SpeechToTextTool().run(audio_path="demo.wav"))
 PY
 ```
 
+### Quick command-line transcription script
+
+For convenience, a helper script `scripts/transcribe.py` wraps the `SpeechToTextTool`:
+
+```powershell
+# Set model directory once (if not passing --model each time)
+$env:VOSK_MODEL_PATH = ".\models\vosk-model-small-en-us-0.15"
+
+# Ensure audio is 16 kHz mono 16-bit WAV; convert if needed:
+ffmpeg -i input.wav -ar 16000 -ac 1 input_16k_mono.wav
+
+# Run transcription
+python scripts/transcribe.py --audio input_16k_mono.wav
+
+# Or explicitly specify model
+python scripts/transcribe.py --audio input_16k_mono.wav --model .\models\vosk-model-small-en-us-0.15
+```
+
+If you see an error about missing dependency, install Vosk and download a model:
+
+```powershell
+pip install vosk
+# Download and extract a model folder from https://alphacephei.com/vosk/models
+``` 
+
+Notes:
+- Long audio: you can pre-split into chunks with `ffmpeg -i long.wav -f segment -segment_time 30 -c copy chunk%03d.wav output_dir` and iterate.
+- Background noise: consider simple noise reduction or using a larger model for better accuracy.
+- Alternative (larger but higher accuracy): integrate Whisper (`pip install openai-whisper`) and adapt the script (future enhancement).
+
+### Command Center Modal (Unified UI)
+
+The web UI now includes a floating button (◎) that opens a unified "Command Center" modal with tabs:
+
+Tabs:
+1. Chat – Same functionality as the main view; supports streaming toggle.
+2. Memory – Search the agent's stored memories.
+3. STT – Upload WAV or record live microphone audio and transcribe.
+4. TTS – Enter text and generate speech playback.
+5. Settings – Client-side Vosk model path field (used for reference; server still relies on environment variable).
+
+How to use:
+1. Start server: `python -m uvicorn src.local_agent.web.server:app --host 127.0.0.1 --port 8000`
+2. Open browser at http://127.0.0.1:8000/static/index.html
+3. Click the ◎ button bottom-right to open the modal.
+4. Switch tabs as needed; each tab isolates its outputs.
+
+The original sidebar UI remains; the modal offers a consolidated workspace for multi-task workflows.
+
+### Provider Switching & Chat Persistence
+
+New features (iterated):
+- Provider selector (Echo, optional llama.cpp, optional Transformers) in the chat bar.
+  - For llama.cpp provide a local GGUF path.
+  - For Transformers provide a model name (e.g. `meta-llama/Meta-Llama-3.1-8B-Instruct`).
+  - Switch without losing memory state.
+- Automatic chat persistence: messages are saved to `localStorage` and restored on reload.
+- Inline action cards: the assistant can surface STT, TTS, and Memory search mini widgets directly under its response if relevant.
+
+Endpoints added:
+- `GET /provider/list` — returns available providers and current active.
+- `POST /provider/set` — body: `{ "name": "llamacpp", "model_path": "models/your.gguf" }` or `{ "name": "transformers", "model_name": "org/model" }`.
+- `GET /tools` — list tool schemas currently loaded.
+- `POST /run_python` — sandboxed Python execution (code, timeout, restricted).
+- `GET /fs/read`, `POST /fs/write`, `POST /fs/upload` — basic file operations under workspace jail.
+- `POST /memory/save` — save a memory item; `GET /memory/list` — list recent memories.
+
+### Memory Pinning & Session Export
+
+In the chat UI each message has a subtle star (★) pin button on hover. Clicking it:
+- Calls `/memory/save` with kind `chat`.
+- Marks the message with a gold outline and PINNED badge.
+- Pinned state persists visually (memory stored in SQLite).
+
+Export the whole session (chat + memory snapshot) via Settings → Export session. Produces `session_export.json` with structure:
+```json
+{
+  "chat": [{"role": "user", "text": "Hi", "pinned": false}, ...],
+  "memories": [{"id": 12, "kind": "chat", "text": "Important note", "ts": "2025-11-14 12:34:56"}]
+}
+```
+
+### Model Download (Local)
+
+You can fetch a model directly into `models/` from the UI Settings menu.
+
+Options:
+- Direct URL (e.g. GGUF file): paste URL + filename and start download.
+- HuggingFace repo: provide `hf_model` (repo id like `TheBloke/Llama-2-7B-GGUF`) and `filename` (exact file name in repo).
+
+Endpoints:
+- `POST /model/download` body examples:
+  - `{ "url": "https://example.com/model.gguf", "filename": "my.gguf" }`
+  - `{ "hf_model": "org/model", "filename": "model.gguf" }`
+- `GET /model/status/{job_id}` returns progress fields: `status`, `downloaded`, `total`, `file`.
+
+Progress Notes:
+- Direct URL streams in chunks; percentage shown if `Content-Length` provided.
+- HuggingFace download uses cache then copies into `models/`.
+- Requires `huggingface_hub` for HF downloads: `pip install huggingface_hub`.
+
+After completion, point provider to the downloaded file (e.g. set llama.cpp model path to the new GGUF). 
+
+Example provider switch (curl):
+```powershell
+curl -X POST -H "Content-Type: application/json" -d '{"name":"echo"}' http://127.0.0.1:8000/provider/set
+```
+
 ## Optional: pre-commit hooks
 
 You can enable formatting and linting pre-commit hooks locally (not enforced in CI yet):
