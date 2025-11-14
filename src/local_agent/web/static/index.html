@@ -10,6 +10,113 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
+  <!-- Top navigation with minimal settings -->
+  <div id="topNav">
+    <div class="brand-mini">LOCAL AGENT</div>
+    <div class="spacer"></div>
+    <div class="nav-actions">
+      <div class="dropdown" id="settingsDropdown">
+        <button id="settingsBtn" title="Settings">⚙</button>
+        <div class="menu" id="settingsMenu">
+          <div class="menu-row"><label><input type="checkbox" id="themeToggle"/> Dark parchment</label></div>
+          <div class="menu-row"><button id="clearChatBtn">Clear chat</button></div>
+          <div class="menu-divider"></div>
+          <div class="menu-row">
+            <label>Provider</label>
+            <div class="menu-provider">
+              <select id="ddProvider"></select>
+              <input type="text" id="ddModelParam" placeholder="path or model" />
+              <button id="ddApplyProvider">Apply</button>
+            </div>
+          </div>
+            <div class="menu-divider"></div>
+            <div class="menu-row" style="flex-direction:column; align-items:stretch;">
+              <label>Download Model</label>
+              <div class="download-block">
+                <input type="text" id="dlUrl" placeholder="Direct URL (GGUF) or leave blank" />
+                <input type="text" id="dlHfModel" placeholder="HuggingFace repo (e.g. TheBloke/Llama-2-7B-GGUF)" />
+                <input type="text" id="dlFilename" placeholder="Filename (e.g. model.gguf or config.json)" />
+                <button id="dlStartBtn">Start Download</button>
+                <div class="progress-line"><span id="dlProgressBar"></span></div>
+                <div class="download-status" id="dlStatus">Idle</div>
+              </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Command Center trigger -->
+  <button id="openCommandCenter" class="floating-btn" title="Open Command Center">◎</button>
+  <!-- Unified modal overlay -->
+  <div id="commandCenter" class="cc-hidden">
+    <div class="cc-window">
+      <div class="cc-header">
+        <div class="cc-title">Command Center</div>
+        <div class="cc-tabs">
+          <button class="cc-tab active" data-tab="cc-chat">Chat</button>
+          <button class="cc-tab" data-tab="cc-memory">Memory</button>
+          <button class="cc-tab" data-tab="cc-stt">STT</button>
+          <button class="cc-tab" data-tab="cc-tts">TTS</button>
+          <button class="cc-tab" data-tab="cc-settings">Settings</button>
+        </div>
+        <button id="cc-close" class="cc-close" title="Close">✕</button>
+      </div>
+      <div class="cc-body">
+        <!-- Chat Pane -->
+        <div id="cc-chat" class="cc-pane active">
+          <div class="cc-chat-messages" id="ccChatMessages"></div>
+          <div class="cc-chat-input">
+            <input type="text" id="ccChatInput" placeholder="Type a message..." />
+            <button id="ccSendBtn">Send</button>
+            <button id="ccStreamToggle">Streaming: ON</button>
+          </div>
+        </div>
+        <!-- Memory Pane -->
+        <div id="cc-memory" class="cc-pane">
+          <div class="cc-group">
+            <input type="text" id="ccMemoryQuery" placeholder="Search memory..." />
+            <button id="ccMemorySearchBtn">Search</button>
+          </div>
+          <div id="ccMemoryResults" class="cc-results"></div>
+        </div>
+        <!-- STT Pane -->
+        <div id="cc-stt" class="cc-pane">
+          <div class="cc-group">
+            <label>Upload WAV for transcription:</label>
+            <input type="file" id="ccSttFile" accept="audio/wav" />
+            <button id="ccSttBtn">Transcribe</button>
+          </div>
+          <div class="cc-group">
+            <label>Live Microphone:</label>
+            <div class="cc-row">
+              <button id="ccMicStart">Start Mic</button>
+              <button id="ccMicStop" disabled>Stop & Transcribe</button>
+            </div>
+            <small id="ccMicStatus">Idle</small>
+            <audio id="ccMicPlayback" controls style="display:none;margin-top:6px;"></audio>
+          </div>
+          <div id="ccSttOutput" class="cc-output"></div>
+        </div>
+        <!-- TTS Pane -->
+        <div id="cc-tts" class="cc-pane">
+          <div class="cc-group">
+            <input type="text" id="ccTtsInput" placeholder="Text to speak" />
+            <button id="ccTtsBtn">Speak</button>
+          </div>
+            <audio id="ccTtsAudio" controls style="display:none;margin-top:6px;"></audio>
+        </div>
+        <!-- Settings Pane -->
+        <div id="cc-settings" class="cc-pane">
+          <div class="cc-group">
+            <label for="ccVoskPath">Vosk Model Path:</label>
+            <input type="text" id="ccVoskPath" placeholder="e.g. .\\models\\vosk-model-small-en-us-0.15" />
+            <button id="ccSetVosk">Set Env (session)</button>
+          </div>
+          <div class="cc-note">This sets window-level variable used when calling STT endpoints (does not persist server-side).</div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="sidebar">
     <div class="brand">
       <h1>LOCAL AGENT</h1>
@@ -56,6 +163,77 @@
   </div>
 
   <script>
+    // ===== Command Center Modal Logic =====
+    const cc = document.getElementById('commandCenter');
+    const ccOpenBtn = document.getElementById('openCommandCenter');
+    const ccCloseBtn = document.getElementById('cc-close');
+    const ccTabs = Array.from(document.querySelectorAll('.cc-tab'));
+    const ccPanes = Array.from(document.querySelectorAll('.cc-pane'));
+    ccOpenBtn.addEventListener('click', ()=> { cc.classList.remove('cc-hidden'); });
+    ccCloseBtn.addEventListener('click', ()=> { cc.classList.add('cc-hidden'); });
+    ccTabs.forEach(btn => btn.addEventListener('click', () => {
+      ccTabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.getAttribute('data-tab');
+      ccPanes.forEach(p => p.classList.toggle('active', p.id === target));
+    }));
+
+    // Chat (Command Center) reuse existing streaming logic but isolate state
+    let ccStreaming = true;
+    const ccChatMessages = document.getElementById('ccChatMessages');
+    const ccChatInput = document.getElementById('ccChatInput');
+    const ccSendBtn = document.getElementById('ccSendBtn');
+    const ccStreamToggle = document.getElementById('ccStreamToggle');
+    function ccAddMessage(text, role) {
+      const div = document.createElement('div');
+      div.className = 'cc-msg ' + role;
+      div.textContent = text;
+      ccChatMessages.appendChild(div);
+      ccChatMessages.scrollTop = ccChatMessages.scrollHeight;
+    }
+    async function ccSendChat() {
+      const msg = ccChatInput.value.trim(); if (!msg) return;
+      ccAddMessage(msg,'user'); ccChatInput.value='';
+      if (ccStreaming) { ccStreamChat(msg); } else { const resp = await fetch('/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: msg})}); const data = await resp.json(); ccAddMessage(data.output,'assistant'); }
+    }
+    function ccStreamChat(msg) {
+      let buffer='';
+      const es = new EventSource('/chat/stream?message=' + encodeURIComponent(msg));
+      es.onmessage = e => { buffer += e.data; ccRenderStreaming(buffer); };
+      es.addEventListener('tool', e => { buffer += '\n[Tool requested]' ; ccRenderStreaming(buffer); });
+      es.addEventListener('done', () => { ccFinalizeStreaming(buffer); es.close(); });
+      es.addEventListener('error', () => { ccFinalizeStreaming(buffer + '\n[error]'); es.close(); });
+    }
+    function ccRenderStreaming(text) { let last = ccChatMessages.querySelector('.cc-msg.assistant[data-streaming="true"]'); if(!last){ last=document.createElement('div'); last.className='cc-msg assistant'; last.dataset.streaming='true'; ccChatMessages.appendChild(last);} last.textContent=text; ccChatMessages.scrollTop=ccChatMessages.scrollHeight; }
+    function ccFinalizeStreaming(text) { let last = ccChatMessages.querySelector('.cc-msg.assistant[data-streaming="true"]'); if(last){ last.removeAttribute('data-streaming'); last.textContent=text; } else { ccAddMessage(text,'assistant'); } }
+    ccSendBtn.addEventListener('click', ccSendChat); ccChatInput.addEventListener('keydown', e=>{ if(e.key==='Enter') ccSendChat(); });
+    ccStreamToggle.addEventListener('click', ()=> { ccStreaming=!ccStreaming; ccStreamToggle.textContent='Streaming: '+(ccStreaming?'ON':'OFF'); });
+
+    // Memory search (modal)
+    document.getElementById('ccMemorySearchBtn').addEventListener('click', async () => {
+      const q = document.getElementById('ccMemoryQuery').value.trim(); if(!q) return;
+      const resp = await fetch('/memory/search?q=' + encodeURIComponent(q)); const data = await resp.json(); const box=document.getElementById('ccMemoryResults'); box.innerHTML=''; data.hits.forEach(h=>{ const d=document.createElement('div'); d.className='cc-hit'; d.textContent='['+h.kind+'] '+h.text; box.appendChild(d); });
+    });
+
+    // STT (modal upload)
+    document.getElementById('ccSttBtn').addEventListener('click', async () => {
+      const f = document.getElementById('ccSttFile').files[0]; if(!f) return; const fd = new FormData(); fd.append('file', f, f.name); const resp = await fetch('/stt', {method:'POST', body:fd}); const data = await resp.json(); document.getElementById('ccSttOutput').textContent = data.content || data.error || 'No output'; });
+
+    // TTS (modal)
+    document.getElementById('ccTtsBtn').addEventListener('click', async () => { const text = document.getElementById('ccTtsInput').value.trim(); if(!text) return; const resp = await fetch('/tts?text=' + encodeURIComponent(text)); if(!resp.ok){ document.getElementById('ccTtsInput').value=''; ccAddMessage('[TTS error]', 'assistant'); return;} const blob=await resp.blob(); const url=URL.createObjectURL(blob); const audio=document.getElementById('ccTtsAudio'); audio.style.display='block'; audio.src=url; audio.play(); });
+
+    // Settings – Vosk path client-side (not server persisted)
+    let ccVoskPathValue = '';
+    document.getElementById('ccSetVosk').addEventListener('click', () => { ccVoskPathValue = document.getElementById('ccVoskPath').value.trim(); alert('Set Vosk path (client memory): '+ (ccVoskPathValue||'[empty]')); });
+
+    // ===== Mic capture (modal) =====
+    let ccAudioCtx, ccMicStream, ccSourceNode, ccProcessorNode, ccBuffers=[], ccRecording=false;
+    function ccMerge(buffers){ const len=buffers.reduce((a,b)=>a+b.length,0); const r=new Float32Array(len); let o=0; for(const b of buffers){ r.set(b,o); o+=b.length;} return r; }
+    function ccEncode(samples, sampleRate){ const buffer=new ArrayBuffer(44 + samples.length*2); const view=new DataView(buffer); const write=(off,str)=>{ for(let i=0;i<str.length;i++) view.setUint8(off+i,str.charCodeAt(i)); }; write(0,'RIFF'); view.setUint32(4,36 + samples.length*2,true); write(8,'WAVE'); write(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true); view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true); write(36,'data'); view.setUint32(40,samples.length*2,true); const pcm=new DataView(buffer,44); let idx=0; for(let i=0;i<samples.length;i++){ let s=Math.max(-1,Math.min(1,samples[i])); s = s<0? s*0x8000 : s*0x7FFF; pcm.setInt16(idx,s,true); idx+=2;} return new Blob([buffer],{type:'audio/wav'}); }
+    const ccMicStart=document.getElementById('ccMicStart'); const ccMicStop=document.getElementById('ccMicStop'); const ccMicStatus=document.getElementById('ccMicStatus'); const ccMicPlayback=document.getElementById('ccMicPlayback');
+    ccMicStart.addEventListener('click', async () => { if(ccRecording) return; try { ccMicStream = await navigator.mediaDevices.getUserMedia({audio:true}); ccAudioCtx = new (window.AudioContext||window.webkitAudioContext)(); ccSourceNode = ccAudioCtx.createMediaStreamSource(ccMicStream); ccProcessorNode = ccAudioCtx.createScriptProcessor(4096,1,1); ccBuffers=[]; ccRecording=true; ccProcessorNode.onaudioprocess = e => { if(!ccRecording) return; ccBuffers.push(new Float32Array(e.inputBuffer.getChannelData(0))); }; ccSourceNode.connect(ccProcessorNode); ccProcessorNode.connect(ccAudioCtx.destination); ccMicStatus.textContent='Recording...'; ccMicStart.disabled=true; ccMicStop.disabled=false; } catch(err){ ccMicStatus.textContent='Mic error: '+err; }});
+    ccMicStop.addEventListener('click', async () => { if(!ccRecording) return; ccRecording=false; ccMicStart.disabled=false; ccMicStop.disabled=true; ccMicStatus.textContent='Processing...'; try { ccProcessorNode && ccProcessorNode.disconnect(); ccSourceNode && ccSourceNode.disconnect(); ccMicStream && ccMicStream.getTracks().forEach(t=>t.stop()); } catch{} const merged=ccMerge(ccBuffers); const wavBlob=ccEncode(merged, ccAudioCtx.sampleRate); ccMicPlayback.style.display='block'; ccMicPlayback.src=URL.createObjectURL(wavBlob); const fd=new FormData(); fd.append('file', wavBlob, 'live.wav'); const resp=await fetch('/stt',{method:'POST', body:fd}); const data=await resp.json(); document.getElementById('ccSttOutput').textContent = '[Live STT] ' + (data.content || data.error); ccMicStatus.textContent='Idle'; });
+
     const messagesEl = document.getElementById('messages');
     const chatInput = document.getElementById('chatInput');
     const sendBtn = document.getElementById('sendBtn');
@@ -68,8 +246,15 @@
       div.className = 'msg ' + role;
       div.textContent = text;
       div.setAttribute('data-role', role);
+      // pin button
+      const pin = document.createElement('button');
+      pin.textContent = '★'; pin.className='pin-btn'; pin.title='Save to memory';
+      pin.addEventListener('click', async (e)=>{
+        e.stopPropagation(); await pinMessage(div, text); });
+      div.appendChild(pin);
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      if (role === 'assistant') maybeOfferActions(text, div);
     }
 
     async function sendChat() {
@@ -129,9 +314,184 @@
       if (last) {
         last.removeAttribute('data-streaming');
         last.textContent = text;
+        // re-add pin button after streaming finalize
+        if (!last.querySelector('.pin-btn')) {
+          const pin = document.createElement('button'); pin.textContent='★'; pin.className='pin-btn'; pin.title='Save to memory'; pin.addEventListener('click', async (e)=>{ e.stopPropagation(); await pinMessage(last, text); }); last.appendChild(pin); }
+        maybeOfferActions(text, last);
       } else {
         addMessage(text, 'assistant');
       }
+    }
+
+    // Offer inline action cards based on assistant reply
+    function maybeOfferActions(text, afterEl) {
+      const lower = (text || '').toLowerCase();
+      const cards = [];
+      if (/(transcribe|speech\s*to\s*text|stt|audio\s*to\s*text)/.test(lower)) cards.push(createSttCard());
+      if (/(tts|text\s*to\s*speech|read\s*it\s*out|speak\s*this)/.test(lower)) cards.push(createTtsCard());
+      if (/(search\s*memory|find\s*(a|the)?\s*note|memory\s*search)/.test(lower)) cards.push(createMemoryCard());
+      if (/(run\s*code|execute\s*python|python\s*code|run\s*this)/.test(lower)) cards.push(createRunPythonCard());
+      if (/(upload\s*file|read\s*file|write\s*file|file\s*ops|file\s*operation)/.test(lower)) cards.push(createFsCard());
+      for (const el of cards) {
+        afterEl.insertAdjacentElement('afterend', el);
+      }
+    }
+
+    function createSttCard() {
+      const card = document.createElement('div'); card.className='action-card';
+      card.innerHTML = `
+        <h5>Transcribe audio (offline)</h5>
+        <div class="row">
+          <input type="file" accept="audio/wav" />
+          <button>Transcribe</button>
+        </div>
+        <div class="row"><small>WAV 16kHz mono recommended.</small></div>
+        <div class="row"><div class="out" style="margin-top:8px; font-size:0.8rem;"></div></div>
+      `;
+      const file = card.querySelector('input[type=file]');
+      const btn = card.querySelector('button');
+      const out = card.querySelector('.out');
+      btn.addEventListener('click', async () => {
+        if (!file.files[0]) { out.textContent = 'Please choose a WAV file.'; return; }
+        const fd = new FormData(); fd.append('file', file.files[0], file.files[0].name);
+        const resp = await fetch('/stt', { method:'POST', body: fd });
+        const data = await resp.json(); out.textContent = data.content || data.error || 'No result.';
+      });
+      return card;
+    }
+
+    function createTtsCard() {
+      const card = document.createElement('div'); card.className='action-card';
+      card.innerHTML = `
+        <h5>Text to speech</h5>
+        <div class="row">
+          <input type="text" placeholder="Type text..." style="flex:1;" />
+          <button>Speak</button>
+        </div>
+        <audio controls style="display:none; margin-top:8px;"></audio>
+      `;
+      const input = card.querySelector('input[type=text]');
+      const btn = card.querySelector('button');
+      const audio = card.querySelector('audio');
+      btn.addEventListener('click', async () => {
+        const text = (input.value||'').trim(); if (!text) return;
+        const resp = await fetch('/tts?text=' + encodeURIComponent(text));
+        if (!resp.ok) { input.value=''; return; }
+        const blob = await resp.blob(); const url = URL.createObjectURL(blob);
+        audio.style.display='block'; audio.src=url; audio.play();
+      });
+      return card;
+    }
+
+    function createMemoryCard() {
+      const card = document.createElement('div'); card.className='action-card';
+      card.innerHTML = `
+        <h5>Search memory</h5>
+        <div class="row">
+          <input type="text" placeholder="What are you looking for?" style="flex:1;" />
+          <button>Search</button>
+        </div>
+        <div class="rows" style="margin-top:8px;"></div>
+      `;
+      const input = card.querySelector('input[type=text]');
+      const btn = card.querySelector('button');
+      const rows = card.querySelector('.rows');
+      btn.addEventListener('click', async () => {
+        const q = (input.value||'').trim(); if (!q) return;
+        const resp = await fetch('/memory/search?q=' + encodeURIComponent(q));
+        const data = await resp.json(); rows.innerHTML='';
+        (data.hits||[]).forEach(h => { const d=document.createElement('div'); d.className='cc-hit'; d.textContent='['+h.kind+'] '+h.text; rows.appendChild(d); });
+      });
+      return card;
+    }
+
+    function createRunPythonCard() {
+      const card = document.createElement('div'); card.className='action-card';
+      card.innerHTML = `
+        <h5>Run Python (sandboxed)</h5>
+        <div class="row" style="flex-direction:column; gap:6px; align-items:stretch;">
+          <textarea rows="6" placeholder="print('hello')" style="width:100%; padding:8px 10px; background:#372115; color:#f2e1c9; border:2px solid var(--border); border-radius:6px;"></textarea>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <label style="font-size:0.75rem;"><input type="checkbox" checked/> Restricted</label>
+            <input type="number" min="1" value="10" style="width:80px;"/>
+            <button>Run</button>
+          </div>
+          <pre class="out" style="white-space:pre-wrap; background:#2a160f; padding:8px; border-radius:6px; border:1px solid var(--border); max-height:280px; overflow:auto;">Output will appear here…</pre>
+        </div>
+      `;
+      const ta = card.querySelector('textarea');
+      const chk = card.querySelector('input[type=checkbox]');
+      const num = card.querySelector('input[type=number]');
+      const btn = card.querySelector('button');
+      const out = card.querySelector('pre.out');
+      btn.addEventListener('click', async () => {
+        const code = (ta.value||'').trim(); if(!code) { out.textContent='Please enter code.'; return; }
+        out.textContent='Running…';
+        const resp = await fetch('/run_python', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code, restricted: chk.checked, timeout: parseInt(num.value||'10',10)})});
+        const data = await resp.json(); out.textContent = (data.ok ? '' : 'ERROR: ') + (data.content || data.error || '(no output)');
+      });
+      return card;
+    }
+
+    function createFsCard() {
+      const card = document.createElement('div'); card.className='action-card';
+      card.innerHTML = `
+        <h5>File operations</h5>
+        <div class="row" style="flex-direction:column; gap:10px; align-items:stretch;">
+          <div class="row">
+            <input type="file" />
+            <input type="text" placeholder="dest (e.g. uploads/file.txt)" style="flex:1;" />
+            <button data-act="upload">Upload</button>
+          </div>
+          <div class="row">
+            <input type="text" placeholder="read path (relative)" style="flex:1;" />
+            <button data-act="read">Read</button>
+          </div>
+          <div class="row" style="flex-direction:column; gap:6px; align-items:stretch;">
+            <input type="text" placeholder="write path (relative)" />
+            <textarea rows="4" placeholder="file content" style="width:100%; padding:8px 10px; background:#372115; color:#f2e1c9; border:2px solid var(--border); border-radius:6px;"></textarea>
+            <button data-act="write">Write</button>
+          </div>
+          <div class="out" style="font-size:0.8rem;"></div>
+        </div>
+      `;
+      const rows = card.querySelectorAll('.row');
+      const out = card.querySelector('.out');
+      const [uploadRow, readRow, writeRow] = rows;
+      const [fileInput, destInput] = uploadRow.querySelectorAll('input');
+      const uploadBtn = uploadRow.querySelector('button');
+      uploadBtn.addEventListener('click', async () => {
+        if (!fileInput.files[0]) { out.textContent='Choose a file'; return; }
+        const fd = new FormData(); fd.append('file', fileInput.files[0], fileInput.files[0].name);
+        const dest = (destInput.value||'').trim();
+        const resp = await fetch('/fs/upload' + (dest? ('?dest=' + encodeURIComponent(dest)) : ''), {method:'POST', body: fd});
+        const data = await resp.json(); out.textContent = data.ok ? ('Uploaded to ' + data.path) : ('ERROR: ' + (data.error||''));
+      });
+      const [readInput] = readRow.querySelectorAll('input');
+      const readBtn = readRow.querySelector('button');
+      readBtn.addEventListener('click', async () => {
+        const p = (readInput.value||'').trim(); if(!p){ out.textContent='Enter a path to read'; return; }
+        const resp = await fetch('/fs/read?path=' + encodeURIComponent(p)); const data = await resp.json(); out.textContent = data.ok ? data.content : ('ERROR: ' + (data.content || data.error));
+      });
+      const [writePath] = writeRow.querySelectorAll('input');
+      const writeTextarea = writeRow.querySelector('textarea');
+      const writeBtn = writeRow.querySelector('button');
+      writeBtn.addEventListener('click', async () => {
+        const p=(writePath.value||'').trim(); const c=(writeTextarea.value||''); if(!p){ out.textContent='Enter a path to write'; return; }
+        const resp = await fetch('/fs/write', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path:p, content:c})});
+        const data = await resp.json(); out.textContent = data.ok ? data.content : ('ERROR: ' + (data.content || data.error));
+      });
+      return card;
+    }
+
+    async function pinMessage(msgEl, text) {
+      if (msgEl.classList.contains('pinned')) return; // already
+      try {
+        const resp = await fetch('/memory/save', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text, kind:'chat'})});
+        const data = await resp.json();
+        if (data.ok) { msgEl.classList.add('pinned'); }
+        else { console.warn('pin failed', data); }
+      } catch (e) { console.warn('pin error', e); }
     }
 
     sendBtn.addEventListener('click', sendChat);
@@ -296,6 +656,76 @@
       const data = await resp.json();
       addMessage('[Live STT] ' + (data.content || data.error), 'assistant');
       micStatus.textContent = 'Idle';
+    });
+
+    // ===== Provider selector =====
+    const ddProvider = document.getElementById('ddProvider');
+    const ddApplyProvider = document.getElementById('ddApplyProvider');
+    const ddModelParam = document.getElementById('ddModelParam');
+    async function loadProviders(){
+      try { const resp = await fetch('/provider/list'); const data = await resp.json(); ddProvider.innerHTML=''; (data.providers||[]).forEach(p=>{ const opt=document.createElement('option'); opt.value=p; opt.textContent=p; if(data.active && data.active.toLowerCase().includes(p.replace('cpp','cpp'))) opt.selected=true; ddProvider.appendChild(opt); }); } catch(e){ console.warn('provider list failed', e); }
+    }
+    ddApplyProvider.addEventListener('click', async () => {
+      const name = ddProvider.value; const raw = ddModelParam.value.trim(); let body={name}; if(name==='llamacpp') body.model_path=raw; if(name==='transformers') body.model_name=raw; const resp = await fetch('/provider/set', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}); const data = await resp.json(); addMessage('[provider] ' + (data.ok ? 'active=' + data.active : 'error=' + data.error), 'assistant');
+    });
+    loadProviders();
+
+    // ===== Chat persistence (localStorage) =====
+    function persistChat(){ const msgs=[...messagesEl.querySelectorAll('.msg')].map(m=>({role:m.dataset.role||'', text:m.textContent||''})); localStorage.setItem('chat_history', JSON.stringify(msgs)); }
+    function restoreChat(){ try { const raw=localStorage.getItem('chat_history'); if(!raw) return; const msgs=JSON.parse(raw); msgs.forEach(m=> addMessage(m.text, m.role || 'assistant')); } catch(e){} }
+    restoreChat();
+    const observer=new MutationObserver(persistChat); observer.observe(messagesEl,{childList:true});
+
+    // ===== Settings dropdown & theme =====
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsMenu = document.getElementById('settingsMenu');
+    settingsBtn.addEventListener('click', (e)=>{ e.stopPropagation(); settingsMenu.classList.toggle('open'); });
+    document.body.addEventListener('click', ()=> settingsMenu.classList.remove('open'));
+    const themeToggle = document.getElementById('themeToggle');
+    function applyTheme() { const dark = localStorage.getItem('variant_dark') === '1'; document.body.classList.toggle('variant-dark', !!dark); themeToggle.checked = !!dark; }
+    themeToggle.addEventListener('change', ()=>{ localStorage.setItem('variant_dark', themeToggle.checked ? '1' : '0'); applyTheme(); });
+    applyTheme();
+    document.getElementById('clearChatBtn').addEventListener('click', ()=>{ localStorage.removeItem('chat_history'); messagesEl.innerHTML=''; addMessage('Cleared chat.', 'assistant'); });
+
+    // Session export button (added to settings menu dynamically)
+    const exportBtn = document.createElement('button'); exportBtn.textContent='Export session'; exportBtn.style.marginTop='6px';
+    exportBtn.addEventListener('click', async ()=>{
+      try {
+        const memResp = await fetch('/memory/list'); const memData = await memResp.json();
+        const chat = [...messagesEl.querySelectorAll('.msg')].map(m=>({role:m.getAttribute('data-role'), text: m.childNodes[0].textContent || '' , pinned: m.classList.contains('pinned')}));
+        const blob = new Blob([JSON.stringify({chat, memories: memData.memories || []}, null, 2)], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='session_export.json'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+      } catch (e) { console.warn('export failed', e); }
+    });
+    settingsMenu.appendChild(exportBtn);
+    // Model download logic
+    const dlUrl = document.getElementById('dlUrl');
+    const dlHfModel = document.getElementById('dlHfModel');
+    const dlFilename = document.getElementById('dlFilename');
+    const dlBtn = document.getElementById('dlStartBtn');
+    const dlBar = document.getElementById('dlProgressBar');
+    const dlStatus = document.getElementById('dlStatus');
+    let currentJob = null; let pollTimer = null;
+    dlBtn.addEventListener('click', async () => {
+      if (currentJob) { dlStatus.textContent='Download already in progress'; return; }
+      const url = dlUrl.value.trim();
+      const hf_model = dlHfModel.value.trim();
+      const filename = dlFilename.value.trim();
+      if (!url && !hf_model) { dlStatus.textContent='Provide URL or HF repo'; return; }
+      if (!filename) { dlStatus.textContent='Filename required'; return; }
+      dlStatus.textContent='Starting...'; dlBar.style.width='0%';
+      const resp = await fetch('/model/download', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url: url || undefined, hf_model: hf_model || undefined, filename})});
+      const data = await resp.json();
+      if (!data.ok) { dlStatus.textContent='ERROR: ' + (data.error||'unknown'); return; }
+      currentJob = data.job_id; dlStatus.textContent='Job ' + currentJob + ' started';
+      pollTimer = setInterval(async ()=>{
+        const r = await fetch('/model/status/' + currentJob); const s = await r.json();
+        if (s.status === 'downloading') {
+          const total = s.total || 0; const downloaded = s.downloaded || 0; const pct = total? Math.min(100, ((downloaded/total)*100)) : 0; dlBar.style.width = pct + '%'; dlStatus.textContent = 'Downloading ' + downloaded + '/' + total + ' (' + pct.toFixed(1) + '%)';
+        } else if (s.status === 'finished') { dlBar.style.width='100%'; dlStatus.textContent='Completed: ' + (s.file||''); clearInterval(pollTimer); currentJob=null; }
+        else if (s.status === 'error') { dlStatus.textContent='ERROR: ' + (s.error||''); clearInterval(pollTimer); currentJob=null; }
+      }, 1500);
     });
   </script>
 </body>
