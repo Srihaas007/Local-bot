@@ -16,3 +16,8 @@ pytest>=8.2
 # Optional web UI (FastAPI server and streaming)
 fastapi>=0.110
 uvicorn>=0.29
+python-multipart>=0.0.9
+requests>=2.32
+
+# Optional utilities
+# huggingface_hub    # For /model/download with HF repos

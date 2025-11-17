@@ -1,5 +1,20 @@
 # Local Agent (No Ollama Required)
 
+Quickstart (Windows, PowerShell)
+
+```powershell
+# One-liner setup & run
+.\scripts\quickstart.ps1
+```
+
+Attach a local model
+
+- Use Settings → Download Model to fetch a GGUF or HF file into `models/`.
+- Switch provider in Settings:
+  - llama.cpp → set model path to the downloaded `.gguf`.
+  - Transformers → set model name (requires torch + transformers installed).
+- Start chatting. Tools auto-execute in the web UI.
+
 A small, extensible local agent you can run entirely on your Windows machine. It supports:
 
 - Model providers:
