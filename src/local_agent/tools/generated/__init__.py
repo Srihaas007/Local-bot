@@ -7,3 +7,5 @@ from .text_to_speech import TextToSpeechTool
 __all__.append('TextToSpeechTool')
 from .speech_to_text import SpeechToTextTool
 __all__.append('SpeechToTextTool')
+from .echo_test import EchoTestTool
+__all__.append('EchoTestTool')
