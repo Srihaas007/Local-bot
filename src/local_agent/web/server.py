@@ -320,6 +320,30 @@ def run_python(payload: dict) -> JSONResponse:
     return JSONResponse({"ok": r.ok, "content": r.content})
 
 
+@app.post("/orchestrate")
+def orchestrate(payload: dict) -> JSONResponse:
+    task = str(payload.get("task", ""))
+    if not task:
+        return JSONResponse({"error": "task required"}, status_code=400)
+    
+    from ..orchestrator import Orchestrator
+    # Create a fresh orchestrator for this request (or could be global if we want to track state)
+    # For now, stateless per request (blocking)
+    orch = Orchestrator(AGENT, max_steps=10)
+    history = orch.run_task(task)
+    
+    # Convert history to JSON-serializable format
+    steps = []
+    for step in history:
+        steps.append({
+            "step": step.step,
+            "action": step.action,
+            "output": step.output
+        })
+        
+    return JSONResponse({"history": steps})
+
+
 @app.get("/fs/read")
 def fs_read(path: str = Query(""), start: int = Query(1), end: int = Query(10000)) -> JSONResponse:
     if not path:
