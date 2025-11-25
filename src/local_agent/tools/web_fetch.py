@@ -39,7 +39,9 @@ class WebFetch(Tool):
             host = (parsed.hostname or "").lower()
             if not host:
                 return ToolResult(ok=False, content="Invalid URL")
-            if FLAGS.allowed_domains and host not in FLAGS.allowed_domains:
+            # Deny-by-default: if no allowlist configured, block all domains.
+            # When an allowlist is provided, only listed hosts are permitted.
+            if (not FLAGS.allowed_domains) or (host not in FLAGS.allowed_domains):
                 return ToolResult(ok=False, content=f"Domain '{host}' not allowed. Set LOCAL_AGENT_ALLOWED_DOMAINS to include it.")
             # Fetch with streaming and cap size
             try:
