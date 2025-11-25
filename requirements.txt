@@ -7,6 +7,10 @@ python-dotenv>=1.0
 # Testing
 pytest>=8.2
 
+# Semantic Memory
+sentence-transformers>=2.2.2
+numpy>=1.26.0
+
 # Optional providers (install manually as needed)
 # llama-cpp-python  # For GGUF models via llama.cpp (CPU/GPU)
 # transformers       # For HF models (requires torch)

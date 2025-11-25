@@ -84,28 +84,6 @@ pip install llama-cpp-python
 pip install transformers bitsandbytes
 ```
 
-- Use a model like `meta-llama/Meta-Llama-3.1-8B-Instruct` or `Qwen/Qwen2.5-7B-Instruct` with 4-bit.
-
-Note: Large ML installs can take time; the agent still works with EchoProvider meanwhile.
-
-## Optional: Semantic memory (embeddings)
-
-Semantic memory is optional and off by default. To enable it:
-
-1) Install sentence-transformers (will pull PyTorch CPU by default):
-
-```powershell
-pip install sentence-transformers
-```
-
-2) The agent will automatically compute embeddings for new memories and use semantic search. If not installed, it will fall back to keyword search.
-
-## Usage
-
-```powershell
-python -m src.local_agent.cli --provider echo
-```
-
 Type messages. The agent will respond or request a tool call in JSON. With a real provider, it will reason and call tools as needed.
 
 Examples of agent tool outputs are printed with diffs and prompts for approval.
@@ -146,6 +124,41 @@ python -m src.local_agent.skills_cli propose --name echo_text --description "Ech
 - Add semantic memory (sentence-transformers + SQLite vector table)
 - Add LangGraph workflow (approval gates, retries) if you need more complex flows
 - Add a simple web UI
+
+## Cover Letter Prompt Usage
+
+The file `prompt.json` defines a structured JSON prompt (no executable code) for generating a personalized cover letter. It includes rules forbidding hyphens/dashes/underscores and markdown fences in output, a persona style, and memory directives.
+
+### Build a payload
+
+```powershell
+python .\scripts\prepare_cover_letter.py --job-desc .\job_description.txt --job-title "Data Analyst" --company-name "ExampleCorp" --hiring-manager "Hiring Team" --extra-context .\resume.txt .\portfolio_summary.txt
+```
+
+This writes `cover_letter_payload.json` containing:
+- `system`: system instruction string
+- `query`: filled letter request with date
+- `resumeContext`: measurable achievements
+- `persona` / `memory` / `dynamicContext` directives
+- Optional `contextFiles` (raw content of supplied extra files)
+
+Send the payload to your model (e.g., ChatGPT API): use `system` as system prompt, concatenate `query`, and attach JSON metadata fields if supported. After generation, run a sanitizer to remove banned characters if any slip through.
+
+### Post-generation sanitization example
+
+```powershell
+python - <<'PY'
+import json, re
+txt = Path('model_output.txt').read_text(encoding='utf-8')
+clean = re.sub(r'```[\s\S]*?```', ' ', txt)
+clean = re.sub(r'[-–—_]', ' ', clean)
+clean = re.sub(r' {2,}', ' ', clean).strip()
+print(clean)
+PY
+```
+
+### Personalization workflow
+Paste each new raw job description into a file (e.g., `job_description.txt`) then rerun the builder script. The memory directives instruct the model to rotate emphasis among achievements and maintain consistent voice.
 
 ## Skill factory (self-extend) — MVP
 
